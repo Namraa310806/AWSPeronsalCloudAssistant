@@ -271,6 +271,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   margin-bottom: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
@@ -419,6 +420,27 @@
   background: rgba(255, 255, 255, 0.95);
   color: #333;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Delete button styling */
+.action-btn.delete-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border: none;
+  box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);
+  font-size: 0.9rem;
+  padding: 0.75rem 1.25rem;
+}
+
+.action-btn.delete-btn:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.5);
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.action-btn.delete-btn:disabled {
+  opacity: 0.7;
+  background: linear-gradient(135deg, #fca5a5, #f87171);
 }
 
 /* Summary Card */

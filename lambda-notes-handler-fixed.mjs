@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
 // Initialize DynamoDB Document Client
 const client = new DynamoDBClient({});
@@ -13,7 +13,7 @@ export const handler = async (event) => {
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
         'Content-Type': 'application/json'
     };
     
@@ -149,6 +149,45 @@ export const handler = async (event) => {
             }
         }
         
+        // Handle DELETE - Remove note by id
+        else if (method === 'DELETE') {
+            const pathParams = event.pathParameters || {};
+            const noteId = pathParams.id || pathParams.noteId;
+            console.log('Delete request for noteId:', noteId, 'pathParameters:', pathParams);
+
+            if (!noteId) {
+                return {
+                    statusCode: 400,
+                    headers: headers,
+                    body: JSON.stringify({ error: 'noteId is required in the path' })
+                };
+            }
+
+            try {
+                const command = new DeleteCommand({
+                    TableName: TABLE_NAME,
+                    Key: { noteId }
+                });
+
+                await docClient.send(command);
+                console.log('Deleted noteId:', noteId);
+
+                return {
+                    statusCode: 200,
+                    headers: headers,
+                    body: JSON.stringify({ message: 'Note deleted successfully', noteId })
+                };
+
+            } catch (error) {
+                console.error('DynamoDB delete error:', error);
+                return {
+                    statusCode: 500,
+                    headers: headers,
+                    body: JSON.stringify({ error: 'Failed to delete note: ' + error.message })
+                };
+            }
+        }
+
         else {
             return {
                 statusCode: 405,

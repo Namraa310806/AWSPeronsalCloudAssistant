@@ -18,7 +18,7 @@ function App() {
             <header className="app-header">
               <h1>Personal Cloud Assistant</h1>
               <div className="user-info">
-                <span>Welcome, {user?.attributes?.email}!</span>
+                <span>Welcome {user?.attributes?.email}</span>
                 <button onClick={signOut} className="sign-out-btn">
                   Sign Out
                 </button>

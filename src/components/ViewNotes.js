@@ -165,6 +165,66 @@ function ViewNotes() {
     }
   };
 
+  const handleDeleteNote = async (note) => {
+    if (!window.confirm(`Are you sure you want to delete the note "${note.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setLoadingFiles(prev => ({ ...prev, [`delete-note-${note.id}`]: true }));
+    
+    try {
+      const response = await fetch(`https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/notes/${note.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        setNotes(notes.filter(n => n.id !== note.id));
+        setMessage(`Note "${note.title}" deleted successfully!`);
+      } else {
+        const result = await response.json();
+        setMessage(result.error || 'Failed to delete note');
+      }
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      setMessage('Error deleting note. Please try again.');
+    } finally {
+      setLoadingFiles(prev => ({ ...prev, [`delete-note-${note.id}`]: false }));
+    }
+  };
+
+  const handleDeleteFile = async (file) => {
+    if (!window.confirm(`Are you sure you want to delete the file "${file.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setLoadingFiles(prev => ({ ...prev, [`delete-file-${file.id}`]: true }));
+    
+    try {
+      const response = await fetch(`https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/files/${file.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        setFiles(files.filter(f => f.id !== file.id));
+        setMessage(`File "${file.name}" deleted successfully!`);
+      } else {
+        const result = await response.json();
+        setMessage(result.error || 'Failed to delete file');
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      setMessage('Error deleting file. Please try again.');
+    } finally {
+      setLoadingFiles(prev => ({ ...prev, [`delete-file-${file.id}`]: false }));
+    }
+  };
+
 
 
   const formatDate = (dateString) => {
@@ -218,6 +278,14 @@ function ViewNotes() {
                     </p>
                     <div className="note-meta">
                       <span className="date">{formatDate(note.createdAt)}</span>
+                      <button
+                        onClick={() => handleDeleteNote(note)}
+                        disabled={loadingFiles[`delete-note-${note.id}`]}
+                        className="action-btn delete-btn"
+                        title="Delete this note"
+                      >
+                        {loadingFiles[`delete-note-${note.id}`] ? 'Deleting...' : '🗑️ Delete'}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -262,6 +330,14 @@ function ViewNotes() {
                         className="action-btn primary"
                       >
                         {loadingFiles[`download-${file.id}`] ? 'Downloading...' : 'Download'}
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteFile(file)}
+                        disabled={loadingFiles[`delete-file-${file.id}`]}
+                        className="action-btn delete-btn"
+                        title="Delete this file"
+                      >
+                        {loadingFiles[`delete-file-${file.id}`] ? 'Deleting...' : '🗑️ Delete'}
                       </button>
                     </div>
                   </div>
