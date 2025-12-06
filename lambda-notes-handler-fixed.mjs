@@ -1,13 +1,25 @@
+// ==========================================
+// LAMBDA FUNCTION 1: NOTES HANDLER (.mjs) - ENHANCED WITH MONITORING
+// ==========================================
+
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
+import { randomUUID } from 'crypto';
 
-// Initialize DynamoDB Document Client
+// Initialize clients
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const cloudwatchClient = new CloudWatchClient({ region: 'ap-south-1' });
 const TABLE_NAME = 'Notes';
+const NAMESPACE = 'PersonalCloudAssistant/Notes';
 
-export const handler = async (event) => {
-    console.log('Received event:', JSON.stringify(event, null, 2));
+export const handler = async (event, context) => {
+    const startTime = Date.now();
+    const requestId = context?.requestId || `req-${Date.now()}`;
+    let operationType = 'unknown';
+    
+    console.log(`[${requestId}] [START] Received event:`, JSON.stringify(event, null, 2));
     
     // CORS headers for all responses
     const headers = {
@@ -16,11 +28,34 @@ export const handler = async (event) => {
         'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
         'Content-Type': 'application/json'
     };
+
+    // Helper function to send metrics to CloudWatch
+    const sendMetric = async (metricName, value, unit = 'Count') => {
+        try {
+            await cloudwatchClient.send(new PutMetricDataCommand({
+                Namespace: NAMESPACE,
+                MetricData: [
+                    {
+                        MetricName: metricName,
+                        Value: value,
+                        Unit: unit,
+                        Timestamp: new Date(),
+                        Dimensions: [
+                            { Name: 'Environment', Value: 'production' },
+                            { Name: 'OperationType', Value: operationType }
+                        ]
+                    }
+                ]
+            }));
+        } catch (err) {
+            console.error(`[${requestId}] Failed to send metric ${metricName}:`, err);
+        }
+    };
     
     try {
         // Get HTTP method
         const method = event.httpMethod || event.requestContext?.http?.method;
-        console.log('HTTP Method:', method);
+        console.log(`[${requestId}] HTTP Method: ${method}`);
         
         // Handle OPTIONS (preflight CORS request)
         if (method === 'OPTIONS') {
@@ -33,52 +68,50 @@ export const handler = async (event) => {
         
         // Handle GET - Fetch notes from DynamoDB
         if (method === 'GET') {
-            try {
-                const command = new ScanCommand({
-                    TableName: TABLE_NAME,
-                    FilterExpression: 'userId = :userId',
-                    ExpressionAttributeValues: {
-                        ':userId': 'test-user'
-                    }
-                });
-                
-                const response = await docClient.send(command);
-                const notes = response.Items || [];
-                
-                // Sort by creation date (newest first)
-                notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                
-                // Add id field for frontend compatibility
-                const notesWithId = notes.map(note => ({
-                    ...note,
-                    id: note.noteId
-                }));
-                
-                console.log(`Found ${notes.length} notes for user`);
-                
-                return {
-                    statusCode: 200,
-                    headers: headers,
-                    body: JSON.stringify(notesWithId)
-                };
-                
-            } catch (error) {
-                console.error('DynamoDB scan error:', error);
-                return {
-                    statusCode: 500,
-                    headers: headers,
-                    body: JSON.stringify({ error: 'Failed to fetch notes: ' + error.message })
-                };
-            }
+            operationType = 'LIST_NOTES';
+            console.log(`[${requestId}] Listing notes for user: test-user`);
+            
+            const command = new ScanCommand({
+                TableName: TABLE_NAME,
+                FilterExpression: 'userId = :userId',
+                ExpressionAttributeValues: {
+                    ':userId': 'test-user'
+                }
+            });
+            
+            const response = await docClient.send(command);
+            const notes = response.Items || [];
+            
+            // Sort by creation date (newest first)
+            notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            // Add id field for frontend compatibility
+            const notesWithId = notes.map(note => ({
+                ...note,
+                id: note.noteId
+            }));
+            
+            const duration = Date.now() - startTime;
+            await sendMetric('RequestDuration', duration, 'Milliseconds');
+            await sendMetric('NotesListed', notes.length, 'Count');
+            
+            console.log(`[${requestId}] [SUCCESS] Retrieved ${notes.length} notes in ${duration}ms`);
+            return {
+                statusCode: 200,
+                headers: headers,
+                body: JSON.stringify(notesWithId)
+            };
         }
         
         // Handle POST - Create new note
-        else if (method === 'POST') {
-            // Safely get the body
+        if (method === 'POST') {
+            operationType = 'CREATE_NOTE';
             const bodyStr = event.body || '{}';
-            console.log('Request body:', bodyStr);
+            console.log(`[${requestId}] Request body:`, bodyStr);
             
             if (!bodyStr || bodyStr === '{}') {
+                await sendMetric('Errors', 1, 'Count');
+                console.error(`[${requestId}] Request body is required`);
                 return {
                     statusCode: 400,
                     headers: headers,
@@ -90,7 +123,8 @@ export const handler = async (event) => {
             try {
                 body = JSON.parse(bodyStr);
             } catch (parseError) {
-                console.error('JSON parse error:', parseError);
+                await sendMetric('Errors', 1, 'Count');
+                console.error(`[${requestId}] JSON parse error:`, parseError);
                 return {
                     statusCode: 400,
                     headers: headers,
@@ -103,6 +137,8 @@ export const handler = async (event) => {
             const content = body.content || '';
             
             if (!title) {
+                await sendMetric('Errors', 1, 'Count');
+                console.error(`[${requestId}] Title is required`);
                 return {
                     statusCode: 400,
                     headers: headers,
@@ -112,7 +148,7 @@ export const handler = async (event) => {
             
             // Create new note and save to DynamoDB
             const newNote = {
-                noteId: crypto.randomUUID(),
+                noteId: randomUUID(),
                 title: title,
                 content: content,
                 createdAt: new Date().toISOString(),
@@ -120,42 +156,42 @@ export const handler = async (event) => {
                 userId: 'test-user'
             };
             
-            try {
-                // Save to DynamoDB
-                const command = new PutCommand({
-                    TableName: TABLE_NAME,
-                    Item: newNote
-                });
-                
-                await docClient.send(command);
-                console.log('Note saved to DynamoDB:', newNote);
-                
-                return {
-                    statusCode: 201,
-                    headers: headers,
-                    body: JSON.stringify({
-                        message: 'Note created successfully',
-                        note: { ...newNote, id: newNote.noteId } // Include both for compatibility
-                    })
-                };
-                
-            } catch (error) {
-                console.error('DynamoDB put error:', error);
-                return {
-                    statusCode: 500,
-                    headers: headers,
-                    body: JSON.stringify({ error: 'Failed to save note: ' + error.message })
-                };
-            }
+            console.log(`[${requestId}] Creating note:`, newNote.noteId);
+            
+            // Save to DynamoDB
+            const command = new PutCommand({
+                TableName: TABLE_NAME,
+                Item: newNote
+            });
+            
+            await docClient.send(command);
+            
+            const duration = Date.now() - startTime;
+            await sendMetric('RequestDuration', duration, 'Milliseconds');
+            await sendMetric('NotesCreated', 1, 'Count');
+            
+            console.log(`[${requestId}] [SUCCESS] Note created in ${duration}ms`);
+            
+            return {
+                statusCode: 201,
+                headers: headers,
+                body: JSON.stringify({
+                    message: 'Note created successfully',
+                    note: { ...newNote, id: newNote.noteId }
+                })
+            };
         }
         
         // Handle DELETE - Remove note by id
-        else if (method === 'DELETE') {
+        if (method === 'DELETE') {
+            operationType = 'DELETE_NOTE';
             const pathParams = event.pathParameters || {};
             const noteId = pathParams.id || pathParams.noteId;
-            console.log('Delete request for noteId:', noteId, 'pathParameters:', pathParams);
+            console.log(`[${requestId}] Delete request for noteId:`, noteId);
 
             if (!noteId) {
+                await sendMetric('Errors', 1, 'Count');
+                console.error(`[${requestId}] noteId is required in the path`);
                 return {
                     statusCode: 400,
                     headers: headers,
@@ -163,47 +199,44 @@ export const handler = async (event) => {
                 };
             }
 
-            try {
-                const command = new DeleteCommand({
-                    TableName: TABLE_NAME,
-                    Key: { noteId }
-                });
+            const command = new DeleteCommand({
+                TableName: TABLE_NAME,
+                Key: { noteId }
+            });
 
-                await docClient.send(command);
-                console.log('Deleted noteId:', noteId);
+            await docClient.send(command);
+            
+            const duration = Date.now() - startTime;
+            await sendMetric('RequestDuration', duration, 'Milliseconds');
+            await sendMetric('NotesDeleted', 1, 'Count');
+            
+            console.log(`[${requestId}] [SUCCESS] Note deleted in ${duration}ms`);
 
-                return {
-                    statusCode: 200,
-                    headers: headers,
-                    body: JSON.stringify({ message: 'Note deleted successfully', noteId })
-                };
-
-            } catch (error) {
-                console.error('DynamoDB delete error:', error);
-                return {
-                    statusCode: 500,
-                    headers: headers,
-                    body: JSON.stringify({ error: 'Failed to delete note: ' + error.message })
-                };
-            }
-        }
-
-        else {
             return {
-                statusCode: 405,
+                statusCode: 200,
                 headers: headers,
-                body: JSON.stringify({ error: `Method ${method} not allowed` })
+                body: JSON.stringify({ message: 'Note deleted successfully', noteId })
             };
         }
+
+        await sendMetric('Errors', 1, 'Count');
+        return {
+            statusCode: 405,
+            headers: headers,
+            body: JSON.stringify({ error: `Method ${method} not allowed` })
+        };
             
     } catch (error) {
-        console.error('Lambda error:', error);
+        const duration = Date.now() - startTime;
+        await sendMetric('Errors', 1, 'Count');
+        await sendMetric('RequestDuration', duration, 'Milliseconds');
+        
+        console.error(`[${requestId}] [ERROR] Unexpected error after ${duration}ms:`, error);
         return {
             statusCode: 500,
             headers: headers,
             body: JSON.stringify({ 
-                error: 'Internal server error: ' + error.message,
-                details: error.stack 
+                error: 'Internal server error: ' + error.message
             })
         };
     }
