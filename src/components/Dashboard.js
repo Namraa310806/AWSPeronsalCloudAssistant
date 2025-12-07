@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './Dashboard.css';
+import { apiFetch } from '../api';
 
 function Dashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
@@ -12,14 +13,9 @@ function Dashboard() {
 
   const loadRecentActivity = async () => {
     try {
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      
-      // Load recent notes and files
       const [notesResponse, filesResponse] = await Promise.all([
-        fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/notes', { headers }),
-        fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/files', { headers })
+        apiFetch('/notes'),
+        apiFetch('/files')
       ]);
 
       const notes = notesResponse.ok ? await notesResponse.json() : [];

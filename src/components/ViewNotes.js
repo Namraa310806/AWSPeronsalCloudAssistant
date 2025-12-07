@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './ViewNotes.css';
+import { apiFetch } from '../api';
 
 function ViewNotes() {
   const [notes, setNotes] = useState([]);
@@ -19,14 +20,10 @@ function ViewNotes() {
   const loadNotesAndFiles = async () => {
     setIsLoading(true);
     try {
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      
       // Load notes and files in parallel
       const [notesResponse, filesResponse] = await Promise.all([
-        fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/notes', { headers }),
-        fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/files', { headers })
+        apiFetch('/notes'),
+        apiFetch('/files')
       ]);
 
       const notes = notesResponse.ok ? await notesResponse.json() : [];
@@ -56,11 +53,8 @@ function ViewNotes() {
     try {
       console.log('Summarizing file:', file);
       
-      const response = await fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/summarize', {
+      const response = await apiFetch('/summarize', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           type: 'file',
           fileKey: file.key,
@@ -182,11 +176,8 @@ function ViewNotes() {
     setLoadingFiles(prev => ({ ...prev, [`delete-note-${note.id}`]: true }));
     
     try {
-      const response = await fetch(`https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/notes/${note.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const response = await apiFetch(`/notes/${note.id}`, {
+        method: 'DELETE'
       });
 
       if (response.ok) {
@@ -212,11 +203,8 @@ function ViewNotes() {
     setLoadingFiles(prev => ({ ...prev, [`delete-file-${file.id}`]: true }));
     
     try {
-      const response = await fetch(`https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/files/${file.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const response = await apiFetch(`/files/${file.id}`, {
+        method: 'DELETE'
       });
 
       if (response.ok) {

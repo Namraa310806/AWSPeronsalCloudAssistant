@@ -61,7 +61,14 @@ export const handler = async (event, context) => {
             return { statusCode: 200, headers: corsHeaders, body: '' };
         }
 
-        const userId = 'test-user';
+            const userId = event?.requestContext?.authorizer?.jwt?.claims?.sub
+                || event?.requestContext?.authorizer?.claims?.sub
+                || event?.requestContext?.authorizer?.claims?.["cognito:username"];
+
+            if (!userId) {
+                console.error(`[${requestId}] Missing authenticated user`);
+                return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized' }) };
+            }
 
         // GET /files
         if (method === 'GET' && (path === '/files' || path.endsWith('/files'))) {
@@ -70,7 +77,7 @@ export const handler = async (event, context) => {
             
             const command = new ListObjectsV2Command({
                 Bucket: BUCKET_NAME,
-                Prefix: `users/${userId}/`
+                    Prefix: `users/${userId}/`
             });
 
             const response = await s3Client.send(command);

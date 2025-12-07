@@ -63,6 +63,15 @@ export const handler = async (event, context) => {
         const method = event.httpMethod || event.requestContext?.http?.method;
         console.log(`[${requestId}] HTTP Method: ${method}`);
 
+        const userId = event?.requestContext?.authorizer?.jwt?.claims?.sub
+            || event?.requestContext?.authorizer?.claims?.sub
+            || event?.requestContext?.authorizer?.claims?.["cognito:username"];
+
+        if (!userId) {
+            await sendMetric('Errors', 1, 'Count');
+            return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized' }) };
+        }
+
         if (method === 'OPTIONS') {
             return { statusCode: 200, headers: corsHeaders, body: '' };
         }
@@ -106,6 +115,10 @@ export const handler = async (event, context) => {
             if (!fileKey) {
                 await sendMetric('Errors', 1, 'Count');
                 return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'fileKey is required for file summarization' }) };
+            }
+            if (!fileKey.startsWith(`users/${userId}/`)) {
+                await sendMetric('Errors', 1, 'Count');
+                return { statusCode: 403, headers: corsHeaders, body: JSON.stringify({ error: 'Access denied for this file' }) };
             }
             try {
                 console.log(`[${requestId}] Fetching file from S3:`, fileKey);

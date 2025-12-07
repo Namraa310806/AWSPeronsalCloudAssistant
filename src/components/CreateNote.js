@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import './CreateNote.css';
+import { apiFetch } from '../api';
 
 function CreateNote() {
   const [noteTitle, setNoteTitle] = useState('');
@@ -23,14 +24,10 @@ function CreateNote() {
     setMessage('Testing API connection...');
 
     try {
-      console.log('Starting API call to:', 'https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/notes');
-      console.log('Request body:', { title: noteTitle, content: noteContent });
+      console.log('Starting API call to create note');
 
-      const response = await fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/notes', {
+      const response = await apiFetch('/notes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           title: noteTitle,
           content: noteContent
@@ -97,11 +94,8 @@ function CreateNote() {
         reader.readAsDataURL(selectedFile);
       });
 
-      const response = await fetch('https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod/files', {
+      const response = await apiFetch('/files', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           fileName: selectedFile.name,
           fileContent: fileContent,

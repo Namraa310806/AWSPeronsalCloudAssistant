@@ -3,7 +3,7 @@
 // ==========================================
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 import { randomUUID } from 'crypto';
 
@@ -18,8 +18,20 @@ export const handler = async (event, context) => {
     const startTime = Date.now();
     const requestId = context?.requestId || `req-${Date.now()}`;
     let operationType = 'unknown';
+    const userId = event?.requestContext?.authorizer?.jwt?.claims?.sub
+        || event?.requestContext?.authorizer?.claims?.sub
+        || event?.requestContext?.authorizer?.claims?.["cognito:username"];
     
     console.log(`[${requestId}] [START] Received event:`, JSON.stringify(event, null, 2));
+
+    if (!userId) {
+        console.error(`[${requestId}] Missing authenticated user`);
+        return {
+            statusCode: 401,
+            headers: { 'Access-Control-Allow-Origin': '*' },
+            body: JSON.stringify({ error: 'Unauthorized' })
+        };
+    }
     
     // CORS headers for all responses
     const headers = {
@@ -69,13 +81,13 @@ export const handler = async (event, context) => {
         // Handle GET - Fetch notes from DynamoDB
         if (method === 'GET') {
             operationType = 'LIST_NOTES';
-            console.log(`[${requestId}] Listing notes for user: test-user`);
+            console.log(`[${requestId}] Listing notes for user: ${userId}`);
             
             const command = new ScanCommand({
                 TableName: TABLE_NAME,
                 FilterExpression: 'userId = :userId',
                 ExpressionAttributeValues: {
-                    ':userId': 'test-user'
+                    ':userId': userId
                 }
             });
             
@@ -153,7 +165,7 @@ export const handler = async (event, context) => {
                 content: content,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
-                userId: 'test-user'
+                userId
             };
             
             console.log(`[${requestId}] Creating note:`, newNote.noteId);
@@ -199,12 +211,25 @@ export const handler = async (event, context) => {
                 };
             }
 
-            const command = new DeleteCommand({
+            const existing = await docClient.send(new GetCommand({
                 TableName: TABLE_NAME,
                 Key: { noteId }
-            });
+            }));
 
-            await docClient.send(command);
+            if (!existing?.Item || existing.Item.userId !== userId) {
+                await sendMetric('Errors', 1, 'Count');
+                console.error(`[${requestId}] Note not found or not owned by user`);
+                return {
+                    statusCode: 404,
+                    headers: headers,
+                    body: JSON.stringify({ error: 'Note not found' })
+                };
+            }
+
+            await docClient.send(new DeleteCommand({
+                TableName: TABLE_NAME,
+                Key: { noteId }
+            }));
             
             const duration = Date.now() - startTime;
             await sendMetric('RequestDuration', duration, 'Milliseconds');

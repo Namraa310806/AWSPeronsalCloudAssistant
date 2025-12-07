@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { CloudWatchClient, GetMetricStatisticsCommand } from "@aws-sdk/client-cloudwatch";
+import React, { useState, useEffect } from 'react';
+import { CloudWatchClient, GetMetricStatisticsCommand, ListMetricsCommand } from "@aws-sdk/client-cloudwatch";
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useNavigate } from 'react-router-dom';
 import './Monitoring.css';
@@ -17,72 +17,123 @@ const Monitoring = () => {
     health: 'healthy'
   });
 
-  const cloudwatch = useMemo(async () => {
-    const session = await fetchAuthSession();
-    return new CloudWatchClient({
-      region: 'ap-south-1',
-      credentials: session.credentials
-    });
-  }, []);
-
   // Fetch metrics from CloudWatch
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const cwClient = await cloudwatch;
+        // Initialize CloudWatch client with fresh credentials
+        const session = await fetchAuthSession();
+        console.log('Fetching CloudWatch metrics with credentials:', session.credentials ? 'Present' : 'Missing');
+        
+        const cwClient = new CloudWatchClient({
+          region: 'ap-south-1',
+          credentials: session.credentials
+        });
         const endTime = new Date();
         const startTime = new Date(endTime.getTime() - 3600000); // Last 1 hour
 
-        // Fetch different metrics
-        const notesCmd = new GetMetricStatisticsCommand({
-          Namespace: 'PersonalCloudAssistant/Notes',
-          MetricName: 'NotesCreated',
-          StartTime: startTime,
-          EndTime: endTime,
-          Period: 300,
-          Statistics: ['Sum']
-        });
+        // Helper function to get metrics with all dimension combinations
+        const getMetricSum = async (namespace, metricName) => {
+          try {
+            // First, list all metrics to find dimension combinations
+            const listCmd = new ListMetricsCommand({
+              Namespace: namespace,
+              MetricName: metricName
+            });
+            const listRes = await cwClient.send(listCmd);
+            
+            console.log(`Found ${listRes.Metrics?.length || 0} metric streams for ${metricName}`);
+            
+            if (!listRes.Metrics || listRes.Metrics.length === 0) {
+              console.warn(`No metrics found for ${namespace}/${metricName}`);
+              return 0;
+            }
 
-        const filesCmd = new GetMetricStatisticsCommand({
-          Namespace: 'PersonalCloudAssistant/Files',
-          MetricName: 'FilesUploaded',
-          StartTime: startTime,
-          EndTime: endTime,
-          Period: 300,
-          Statistics: ['Sum']
-        });
+            // Query each unique metric stream and sum the results
+            const queries = listRes.Metrics.map(metric => {
+              return cwClient.send(new GetMetricStatisticsCommand({
+                Namespace: namespace,
+                MetricName: metricName,
+                Dimensions: metric.Dimensions,
+                StartTime: startTime,
+                EndTime: endTime,
+                Period: 3600, // 1 hour period to get all data
+                Statistics: ['Sum']
+              }));
+            });
 
-        const errorsCmd = new GetMetricStatisticsCommand({
-          Namespace: 'PersonalCloudAssistant/Notes',
-          MetricName: 'Errors',
-          StartTime: startTime,
-          EndTime: endTime,
-          Period: 300,
-          Statistics: ['Sum']
-        });
+            const responses = await Promise.all(queries);
+            const totalSum = responses.reduce((total, res) => {
+              const sum = res.Datapoints?.reduce((s, dp) => s + (dp.Sum || 0), 0) || 0;
+              return total + sum;
+            }, 0);
 
-        const durationCmd = new GetMetricStatisticsCommand({
-          Namespace: 'PersonalCloudAssistant/Notes',
-          MetricName: 'RequestDuration',
-          StartTime: startTime,
-          EndTime: endTime,
-          Period: 300,
-          Statistics: ['Average']
-        });
+            return totalSum;
+          } catch (err) {
+            console.error(`Error fetching ${namespace}/${metricName}:`, err);
+            return 0;
+          }
+        };
 
-        const [notesRes, filesRes, errorsRes, durationRes] = await Promise.all([
-          cwClient.send(notesCmd),
-          cwClient.send(filesCmd),
-          cwClient.send(errorsCmd),
-          cwClient.send(durationCmd)
+        // Helper function to get average metric
+        const getMetricAverage = async (namespace, metricName) => {
+          try {
+            const listCmd = new ListMetricsCommand({
+              Namespace: namespace,
+              MetricName: metricName
+            });
+            const listRes = await cwClient.send(listCmd);
+            
+            if (!listRes.Metrics || listRes.Metrics.length === 0) {
+              return 0;
+            }
+
+            const queries = listRes.Metrics.map(metric => {
+              return cwClient.send(new GetMetricStatisticsCommand({
+                Namespace: namespace,
+                MetricName: metricName,
+                Dimensions: metric.Dimensions,
+                StartTime: startTime,
+                EndTime: endTime,
+                Period: 3600,
+                Statistics: ['Average']
+              }));
+            });
+
+            const responses = await Promise.all(queries);
+            let totalAvg = 0;
+            let count = 0;
+            
+            responses.forEach(res => {
+              res.Datapoints?.forEach(dp => {
+                if (dp.Average) {
+                  totalAvg += dp.Average;
+                  count++;
+                }
+              });
+            });
+
+            return count > 0 ? totalAvg / count : 0;
+          } catch (err) {
+            console.error(`Error fetching ${namespace}/${metricName}:`, err);
+            return 0;
+          }
+        };
+
+        // Fetch all metrics
+        const [notesOps, filesOps, errorCount, avgDur] = await Promise.all([
+          getMetricSum('PersonalCloudAssistant/Notes', 'NotesCreated'),
+          getMetricSum('PersonalCloudAssistant/Files', 'FilesUploaded'),
+          getMetricSum('PersonalCloudAssistant/Notes', 'Errors'),
+          getMetricAverage('PersonalCloudAssistant/Notes', 'RequestDuration')
         ]);
 
-        const notesOps = notesRes.Datapoints?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
-        const filesOps = filesRes.Datapoints?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
-        const errorCount = errorsRes.Datapoints?.reduce((sum, dp) => sum + (dp.Sum || 0), 0) || 0;
-        const avgDur = durationRes.Datapoints?.length > 0 
-          ? durationRes.Datapoints.reduce((sum, dp) => sum + (dp.Average || 0), 0) / durationRes.Datapoints.length 
-          : 0;
+        console.log('Calculated Metrics:', {
+          notesOps,
+          filesOps,
+          errorCount,
+          avgDur
+        });
 
         const health = errorCount > 5 ? 'degraded' : errorCount > 0 ? 'warning' : 'healthy';
 
@@ -98,6 +149,11 @@ const Monitoring = () => {
         });
       } catch (error) {
         console.error('Error fetching CloudWatch metrics:', error);
+        console.error('Error details:', {
+          message: error.message,
+          code: error.code || error.$metadata?.httpStatusCode,
+          name: error.name
+        });
         setMetrics(prev => ({ ...prev, loading: false, health: 'error' }));
       }
     };
@@ -105,7 +161,7 @@ const Monitoring = () => {
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, [cloudwatch]);
+  }, []);
 
   const getHealthColor = (health) => {
     switch (health) {
@@ -201,17 +257,6 @@ const Monitoring = () => {
           <li><strong>Errors:</strong> {metrics.errors} {metrics.errors > 0 ? '⚠️' : '✓'}</li>
           <li><strong>Avg Response Time:</strong> {metrics.avgDuration}ms</li>
         </ul>
-      </div>
-
-      {/* CloudWatch Link */}
-      <div className="cloudwatch-link">
-        <a 
-          href="https://ap-south-1.console.aws.amazon.com/cloudwatch/home?region=ap-south-1#dashboards:"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          View Full CloudWatch Dashboard →
-        </a>
       </div>
     </div>
   );
