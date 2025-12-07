@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { CloudWatchClient, GetMetricStatisticsCommand, ListMetricsCommand } from "@aws-sdk/client-cloudwatch";
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { fetchAuthSession, fetchUserAttributes } from 'aws-amplify/auth';
 import { useNavigate } from 'react-router-dom';
 import './Monitoring.css';
 
+// Admin email - only this user can access monitoring
+const ADMIN_EMAIL = process.env.REACT_APP_ADMIN_EMAIL;
+
 const Monitoring = () => {
   const navigate = useNavigate();
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [metrics, setMetrics] = useState({
     notesOperations: 0,
     filesOperations: 0,
@@ -17,8 +22,38 @@ const Monitoring = () => {
     health: 'healthy'
   });
 
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      try {
+        const userAttributes = await fetchUserAttributes();
+        const userEmail = userAttributes.email;
+        
+        console.log('Checking admin access for:', userEmail);
+        
+        if (userEmail === ADMIN_EMAIL) {
+          setIsAuthorized(true);
+          setCheckingAuth(false);
+        } else {
+          console.warn('Unauthorized access attempt to monitoring dashboard');
+          setCheckingAuth(false);
+          // Redirect non-admin users back to dashboard
+          setTimeout(() => navigate('/'), 2000);
+        }
+      } catch (error) {
+        console.error('Error checking admin access:', error);
+        setCheckingAuth(false);
+        navigate('/');
+      }
+    };
+
+    checkAdminAccess();
+  }, [navigate]);
+
   // Fetch metrics from CloudWatch
   useEffect(() => {
+    if (!isAuthorized) return;
+    
     const fetchMetrics = async () => {
       try {
         // Initialize CloudWatch client with fresh credentials
@@ -64,10 +99,17 @@ const Monitoring = () => {
 
             const responses = await Promise.all(queries);
             const totalSum = responses.reduce((total, res) => {
+              if (res.Datapoints && res.Datapoints.length > 0) {
+                console.log(`Datapoints for ${metricName}:`, res.Datapoints.map(dp => ({
+                  timestamp: dp.Timestamp,
+                  value: dp.Sum
+                })));
+              }
               const sum = res.Datapoints?.reduce((s, dp) => s + (dp.Sum || 0), 0) || 0;
               return total + sum;
             }, 0);
 
+            console.log(`Total ${metricName}: ${totalSum}`);
             return totalSum;
           } catch (err) {
             console.error(`Error fetching ${namespace}/${metricName}:`, err);
@@ -161,7 +203,7 @@ const Monitoring = () => {
     fetchMetrics();
     const interval = setInterval(fetchMetrics, 60000); // Refresh every minute
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthorized]);
 
   const getHealthColor = (health) => {
     switch (health) {
@@ -182,6 +224,34 @@ const Monitoring = () => {
       default: return 'Unknown';
     }
   };
+
+  // Show loading while checking authorization
+  if (checkingAuth) {
+    return (
+      <div className="monitoring-container">
+        <div className="loading">Checking access permissions...</div>
+      </div>
+    );
+  }
+
+  // Show unauthorized message
+  if (!isAuthorized) {
+    return (
+      <div className="monitoring-container">
+        <div className="monitoring-header">
+          <h2>🚫 Access Denied</h2>
+        </div>
+        <div className="metrics-info" style={{ textAlign: 'center', padding: '40px' }}>
+          <p style={{ fontSize: '18px', color: '#FF6B6B' }}>
+            You do not have permission to access the monitoring dashboard.
+          </p>
+          <p style={{ marginTop: '20px', color: '#666' }}>
+            Redirecting to dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="monitoring-container">

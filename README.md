@@ -126,6 +126,39 @@ personal-cloud-assistant/
 
 ## 🔧 AWS Services Configuration
 
+### Environment Variables Setup
+
+Before running the application, you need to configure your AWS credentials and settings:
+
+1. **Copy the example environment file**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Update `.env` with your AWS configuration**:
+   ```env
+   # AWS Cognito Configuration
+   REACT_APP_USER_POOL_ID=your_user_pool_id
+   REACT_APP_USER_POOL_CLIENT_ID=your_client_id
+   REACT_APP_IDENTITY_POOL_ID=your_identity_pool_id
+
+   # AWS S3 Configuration
+   REACT_APP_S3_BUCKET=your_s3_bucket_name
+   REACT_APP_AWS_REGION=ap-south-1
+
+   # API Gateway Configuration
+   REACT_APP_API_ENDPOINT=your_api_gateway_endpoint
+
+   # Admin Configuration (for monitoring access)
+   REACT_APP_ADMIN_EMAIL=your_admin_email@example.com
+   ```
+
+3. **Important Security Notes**:
+   - ⚠️ **Never commit `.env` to version control** - It contains sensitive credentials
+   - ✅ The `.env` file is already in `.gitignore`
+   - ✅ Always use `.env.example` as a template for new developers
+   - ✅ Keep your AWS credentials secure and rotate them regularly
+
 ### Lambda Functions
 
 #### 1. Notes Handler

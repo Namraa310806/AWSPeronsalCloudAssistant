@@ -2,9 +2,9 @@
 const awsconfig = {
     Auth: {
         Cognito: {
-            userPoolId: 'ap-south-1_soJGXw1ss',
-            userPoolClientId: '3iqndj5102bmi5eloidfph3r2p',
-            identityPoolId: 'ap-south-1:0dcbdaa0-593a-45fa-bff9-cf251edf80f6',
+            userPoolId: process.env.REACT_APP_USER_POOL_ID,
+            userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
+            identityPoolId: process.env.REACT_APP_IDENTITY_POOL_ID,
             loginWith: {
                 email: true
             },
@@ -26,15 +26,15 @@ const awsconfig = {
     },
     Storage: {
         S3: {
-            bucket: 'pca-files-namraa',
-            region: 'ap-south-1'
+            bucket: process.env.REACT_APP_S3_BUCKET,
+            region: process.env.REACT_APP_AWS_REGION
         }
     },
     API: {
         REST: {
             notesAPI: {
-                endpoint: 'https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod',
-                region: 'ap-south-1'
+                endpoint: process.env.REACT_APP_API_ENDPOINT,
+                region: process.env.REACT_APP_AWS_REGION
             }
         }
     }

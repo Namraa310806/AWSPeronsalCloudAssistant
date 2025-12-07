@@ -1,6 +1,6 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 
-const API_BASE = 'https://uno1pwyend.execute-api.ap-south-1.amazonaws.com/prod';
+const API_BASE = process.env.REACT_APP_API_ENDPOINT;
 
 const getAuthToken = async () => {
   const session = await fetchAuthSession();
