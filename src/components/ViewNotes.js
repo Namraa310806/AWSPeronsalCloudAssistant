@@ -12,6 +12,7 @@ function ViewNotes() {
   const [summary, setSummary] = useState('');
   const [summaryMeta, setSummaryMeta] = useState(null);
   const [loadingFiles, setLoadingFiles] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadNotesAndFiles();
@@ -242,6 +243,16 @@ function ViewNotes() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Filter notes and files based on search query
+  const filteredNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    note.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredFiles = files.filter(file =>
+    file.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="view-notes">
       <div className="page-header">
@@ -258,15 +269,46 @@ function ViewNotes() {
       {isLoading ? (
         <div className="loading">Loading your notes and files...</div>
       ) : (
-        <div className="content-sections">
+        <>
+          {/* Search Bar */}
+          <div className="search-container">
+            <input
+              type="text"
+              placeholder="🔍 Search notes and files by name or content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="clear-search-btn"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Search Results Summary */}
+          {searchQuery && (
+            <div className="search-results-summary">
+              Found <strong>{filteredNotes.length}</strong> note{filteredNotes.length !== 1 ? 's' : ''} and <strong>{filteredFiles.length}</strong> file{filteredFiles.length !== 1 ? 's' : ''}
+            </div>
+          )}
+
+          <div className="content-sections">
           {/* Notes Section */}
           <div className="section">
-            <h3>Your Notes ({notes.length})</h3>
-            {notes.length === 0 ? (
-              <p className="empty-state">No notes found. <Link to="/create">Create your first note</Link></p>
+            <h3>Your Notes ({filteredNotes.length})</h3>
+            {filteredNotes.length === 0 ? (
+              <p className="empty-state">
+                {searchQuery ? `No notes found matching "${searchQuery}". ` : 'No notes found. '}
+                <Link to="/create">Create your first note</Link>
+              </p>
             ) : (
               <div className="notes-grid">
-                {notes.map((note) => (
+                {filteredNotes.map((note) => (
                   <div key={note.id} className="note-card">
                     <h4>{note.title}</h4>
                     <p className="note-preview">
@@ -292,12 +334,15 @@ function ViewNotes() {
 
           {/* Files Section */}
           <div className="section">
-            <h3>Your Files ({files.length})</h3>
-            {files.length === 0 ? (
-              <p className="empty-state">No files uploaded. <Link to="/create">Upload your first file</Link></p>
+            <h3>Your Files ({filteredFiles.length})</h3>
+            {filteredFiles.length === 0 ? (
+              <p className="empty-state">
+                {searchQuery ? `No files found matching "${searchQuery}". ` : 'No files uploaded. '}
+                <Link to="/create">Upload your first file</Link>
+              </p>
             ) : (
               <div className="files-list">
-                {files.map((file) => (
+                {filteredFiles.map((file) => (
                   <div key={file.id} className="file-card">
                     <div className="file-info">
                       <h4>{file.name}</h4>
@@ -360,7 +405,8 @@ function ViewNotes() {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
