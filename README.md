@@ -54,18 +54,36 @@ This application follows a serverless architecture pattern with:
 
 ### 2. Notes Management
 - **Create Notes**: Add notes with title and content
-- **View Notes**: Browse all saved notes
-- **Delete Notes**: Remove unwanted notes
+- **View Notes**: Browse all saved notes with modern masonry grid layout
+- **Edit Notes**: Full inline editing with save/cancel options
+- **Delete Notes**: Remove unwanted notes with confirmation
+- **Search Notes**: Real-time search by title and content
 - **Timestamps**: Automatic creation and update tracking
 
 ### 3. File Management
 - **Upload Files**: Support for any file type
-- **View Files**: List all uploaded files with metadata
+- **View Files**: List all uploaded files with metadata in grid layout
 - **Download Files**: Secure presigned URLs for file downloads
-- **Delete Files**: Remove files from storage
+- **Delete Files**: Remove files from storage with confirmation
 - **File Metadata**: Track file size, type, and upload date
+- **Search Files**: Real-time search by filename
 
-### 4. AI-Powered Summarization
+### 4. Enhanced View & Read More
+- **Masonry Grid Layout**: Pinterest-style responsive grid that adapts to content height
+- **Preview Truncation**: Notes show first 60 characters with "Read More" option
+- **Beautiful Modal**: Enhanced full-note viewing window with:
+  - Gradient background with backdrop blur
+  - Smooth animations and transitions
+  - Calendar emoji for dates
+  - Content highlighting with left border accent
+  - Close button with rotation effect
+- **Icon Buttons**: Compact 32x32px circular buttons with:
+  - ✏️ Edit (gray)
+  - 🗑️ Delete (red)
+  - ⋯ Read More (purple)
+  - 💾 Save / ✕ Cancel (colored icons in edit mode)
+
+### 5. AI-Powered Summarization
 - **Auto-Summarize**: Click to summarize file content
 - **Multi-Format Support**: 
   - PDF documents (text extraction)
@@ -75,7 +93,7 @@ This application follows a serverless architecture pattern with:
 - **Fallback Mechanism**: Graceful degradation if AI service unavailable
 - **Quality Scoring**: Content quality assessment before processing
 
-### 5. Real-Time Monitoring Dashboard
+### 6. Real-Time Monitoring Dashboard
 - **System Health**: Overall health status (healthy/warning/degraded/error)
 - **Metrics Tracking**:
   - Notes created count
@@ -85,14 +103,17 @@ This application follows a serverless architecture pattern with:
 - **Auto-Refresh**: Updates every 60 seconds
 - **Visual Indicators**: Color-coded health status
 - **CloudWatch Integration**: Real-time metrics from AWS
+- **Admin-Only Access**: Restricted to configured admin email
 
-### 6. Responsive UI/UX
+### 7. Responsive UI/UX
 - **Gradient Background**: Animated gradient with smooth transitions
-- **Glassmorphism Design**: Modern frosted glass effects
+- **Glassmorphism Design**: Modern frosted glass effects with backdrop blur
 - **Mobile-Friendly**: Responsive design for all screen sizes
 - **Loading States**: Visual feedback during operations
 - **Error Handling**: User-friendly error messages
 - **Floating Action Button**: Quick access to monitoring
+- **Smooth Animations**: CSS animations for transitions and interactions
+- **Professional Color Scheme**: Purple gradients and accent colors
 
 ## 📁 Project Structure
 

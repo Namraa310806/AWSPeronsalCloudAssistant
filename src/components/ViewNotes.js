@@ -13,6 +13,12 @@ function ViewNotes() {
   const [summaryMeta, setSummaryMeta] = useState(null);
   const [loadingFiles, setLoadingFiles] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingNote, setEditingNote] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [viewingFullNote, setViewingFullNote] = useState(null);
+  
+  const MAX_PREVIEW_LENGTH =60; // Characters to show before "Read More"
 
   useEffect(() => {
     loadNotesAndFiles();
@@ -223,7 +229,58 @@ function ViewNotes() {
     }
   };
 
+  // Edit note handlers
+  const handleEditNote = (note) => {
+    setEditingNote(note.id);
+    setEditTitle(note.title);
+    setEditContent(note.content);
+    setSummary('');
+    setMessage('');
+  };
 
+  const handleCancelEdit = () => {
+    setEditingNote(null);
+    setEditTitle('');
+    setEditContent('');
+  };
+
+  const handleSaveEdit = async (note) => {
+    if (!editTitle.trim()) {
+      setMessage('Note title cannot be empty');
+      return;
+    }
+
+    setLoadingFiles(prev => ({ ...prev, [`edit-note-${note.id}`]: true }));
+
+    try {
+      // Update the note in the state
+      const updatedNotes = notes.map(n =>
+        n.id === note.id
+          ? { ...n, title: editTitle, content: editContent, updatedAt: new Date().toISOString() }
+          : n
+      );
+      setNotes(updatedNotes);
+      setEditingNote(null);
+      setEditTitle('');
+      setEditContent('');
+      setMessage(`Note "${editTitle}" updated successfully!`);
+    } catch (error) {
+      console.error('Error updating note:', error);
+      setMessage('Error updating note. Please try again.');
+    } finally {
+      setLoadingFiles(prev => ({ ...prev, [`edit-note-${note.id}`]: false }));
+    }
+  };
+
+  // Handler to open full note view
+  const handleReadMore = (note) => {
+    setViewingFullNote(note);
+  };
+
+  // Handler to close full note view
+  const handleCloseFullNote = () => {
+    setViewingFullNote(null);
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -309,29 +366,87 @@ function ViewNotes() {
             ) : (
               <div className="notes-grid">
                 {filteredNotes.map((note) => (
-                  <div key={note.id} className="note-card">
-                    <h4>{note.title}</h4>
-                    <p className="note-preview">
-                      {note.content.substring(0, 150)}
-                      {note.content.length > 150 ? '...' : ''}
-                    </p>
-                    <div className="note-meta">
-                      <span className="date">{formatDate(note.createdAt)}</span>
-                      <button
-                        onClick={() => handleDeleteNote(note)}
-                        disabled={loadingFiles[`delete-note-${note.id}`]}
-                        className="action-btn delete-btn"
-                        title="Delete this note"
-                      >
-                        {loadingFiles[`delete-note-${note.id}`] ? 'Deleting...' : '🗑️ Delete'}
-                      </button>
-                    </div>
+                  <div key={note.id} className={`note-card ${editingNote === note.id ? 'editing' : ''}`}>
+                    {editingNote === note.id ? (
+                      // Edit Mode
+                      <div className="note-edit-form">
+                        <input
+                          type="text"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          placeholder="Note title..."
+                          className="edit-input edit-title"
+                          maxLength="100"
+                        />
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          placeholder="Note content..."
+                          className="edit-input edit-content"
+                          rows="6"
+                        />
+                        <div className="edit-actions">
+                          <button
+                            onClick={() => handleSaveEdit(note)}
+                            disabled={loadingFiles[`edit-note-${note.id}`]}
+                            className="icon-btn primary"
+                            title="Save changes"
+                          >
+                            {loadingFiles[`edit-note-${note.id}`] ? '⏳' : '💾'}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="icon-btn secondary"
+                            title="Cancel editing"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // View Mode
+                      <>
+                        <h4>{note.title}</h4>
+                        <p className="note-preview">
+                          {note.content.substring(0, MAX_PREVIEW_LENGTH)}
+                          {note.content.length > MAX_PREVIEW_LENGTH && '...'}
+                        </p>
+                        <div className="note-meta">
+                          <span className="date">{formatDate(note.createdAt)}</span>
+                          <div className="note-actions">
+                            {note.content.length > MAX_PREVIEW_LENGTH && (
+                              <button
+                                onClick={() => handleReadMore(note)}
+                                className="icon-btn read-more-dots"
+                                title="Read full note"
+                              >
+                                ⋯
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleEditNote(note)}
+                              className="icon-btn secondary"
+                              title="Edit this note"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNote(note)}
+                              disabled={loadingFiles[`delete-note-${note.id}`]}
+                              className="icon-btn delete-btn"
+                              title="Delete this note"
+                            >
+                              {loadingFiles[`delete-note-${note.id}`] ? '⏳' : '🗑️'}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
             )}
           </div>
-
           {/* Files Section */}
           <div className="section">
             <h3>Your Files ({filteredFiles.length})</h3>
@@ -407,6 +522,22 @@ function ViewNotes() {
           )}
           </div>
         </>
+      )}
+
+      {/* Full Note Modal */}
+      {viewingFullNote && (
+        <div className="modal-overlay" onClick={handleCloseFullNote}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close-btn" onClick={handleCloseFullNote} title="Close">
+              ✕
+            </button>
+            <div className="modal-body">
+              <h2>{viewingFullNote.title}</h2>
+              <p className="modal-date">{formatDate(viewingFullNote.createdAt)}</p>
+              <p className="modal-full-content">{viewingFullNote.content}</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
