@@ -1,6 +1,6 @@
 # Personal Cloud Assistant
 
-A serverless note and file management application built with React and AWS, featuring secure authentication, cloud storage, and real-time monitoring.
+A serverless note and file management application built with React and AWS, featuring secure authentication and cloud storage.
 
 🚀 **Live Demo**: [https://main.d1xrjjt0e3swym.amplifyapp.com/](https://main.d1xrjjt0e3swym.amplifyapp.com/)
 
@@ -8,7 +8,7 @@ A serverless note and file management application built with React and AWS, feat
 
 ## 📋 Project Overview
 
-Personal Cloud Assistant is a full-stack web application that allows users to create and manage notes, upload and store files securely in the cloud, and monitor system health in real-time. Built entirely on AWS serverless infrastructure for scalability, reliability, and cost efficiency.
+Personal Cloud Assistant is a full-stack web application that allows users to create and manage notes and upload/store files securely in the cloud. Built entirely on AWS serverless infrastructure for scalability, reliability, and cost efficiency.
 
 ## 🎯 Core Features
 
@@ -33,11 +33,12 @@ Personal Cloud Assistant is a full-stack web application that allows users to cr
 - Responsive design for mobile and desktop
 
 ### Monitoring Dashboard
-- Real-time CloudWatch metrics
-- System health status
-- Request tracking and error monitoring
+- Real-time CloudWatch metrics tracking
+- View Notes & Files operation metrics
+- Request duration and error monitoring
 - Auto-refresh every 60 seconds
-- Admin-only access
+- **Admin-only access** (configured via `REACT_APP_ADMIN_EMAIL`)
+- Navigate to `/monitoring` endpoint
 
 ## 🏗️ Architecture
 
@@ -49,7 +50,7 @@ Personal Cloud Assistant is a full-stack web application that allows users to cr
 
 | Service | Purpose | Details |
 |---------|---------|---------|
-| **Lambda** | Serverless compute | 3 functions: notes, files, and monitoring handlers |
+| **Lambda** | Serverless compute | 2 functions: notes and files handlers |
 | **API Gateway** | REST API | HTTP API for all backend endpoints |
 | **DynamoDB** | Database | NoSQL storage for notes with user partitioning |
 | **S3** | File storage | Secure file uploads with presigned download URLs |
@@ -82,7 +83,7 @@ Create the following in your AWS account:
 - **S3 Bucket**: For file storage (block public access)
 - **Cognito User Pool**: Email-based authentication
 - **Cognito Identity Pool**: For service access
-- **Lambda Functions**: Deploy the three handler files
+- **Lambda Functions**: Deploy the two handler files (notes and files)
 - **API Gateway**: HTTP API with routes to Lambda
 - **IAM Roles**: Lambda execution roles with required permissions
 
@@ -113,7 +114,7 @@ src/
 │   ├── Dashboard.js          # Home page with activity
 │   ├── CreateNote.js         # Note creation form
 │   ├── ViewNotes.js          # Notes & files viewer
-│   ├── Monitoring.js         # CloudWatch dashboard
+│   ├── Monitoring.js         # CloudWatch dashboard (admin-only)
 │   └── *.css                 # Component styles
 ├── App.js                    # Routing and main layout
 ├── api.js                    # API calls with auth
@@ -122,7 +123,6 @@ src/
 
 lambda-files-handler.mjs      # Files Lambda
 lambda-notes-handler.mjs      # Notes Lambda
-lambda-summarize-handler-fixed.mjs  # Monitoring Lambda (reference)
 ```
 
 ## 🔧 Lambda Functions
@@ -145,14 +145,6 @@ Deploy these handler files to Lambda:
 - **Storage**: S3 with presigned URLs (1-hour expiration)
 - **Features**: Base64 upload support, metadata tracking
 
-### Monitoring Handler
-
-- **File**: `lambda-summarize-handler-fixed.mjs` (reference - monitoring logic; frontend feature removed)
-- **Endpoint**: `/monitoring`
-- **Purpose**: Aggregate CloudWatch metrics
-- **Features**: Health calculation, error tracking, dimension aggregation
-- **Access**: Admin-only (configured via `REACT_APP_ADMIN_EMAIL`) - Only the owner can view monitoring dashboard
-
 ## 🔐 Security
 
 - **Authentication**: JWT tokens via Cognito
@@ -161,7 +153,7 @@ Deploy these handler files to Lambda:
 - **Presigned URLs**: Time-limited, signed access to S3 objects
 - **CORS**: Configured for secure cross-origin requests
 - **Credentials**: Environment variables (never committed)
-- **Admin Access**: Monitoring dashboard is restricted to admin users only (configured via `REACT_APP_ADMIN_EMAIL`)
+- **Admin Access**: Monitoring dashboard is restricted to admin users only (configured via `REACT_APP_ADMIN_EMAIL`). Only the user with the admin email can view metrics at `/monitoring`
 
 ## 🎨 UI/UX Highlights
 
@@ -195,7 +187,6 @@ Custom metrics published by Lambda functions:
 
 - `PersonalCloudAssistant/Notes`
 - `PersonalCloudAssistant/Files`
-- `PersonalCloudAssistant/Monitoring`
 
 **Tracked**: Operation counts, request duration, error counts
 
