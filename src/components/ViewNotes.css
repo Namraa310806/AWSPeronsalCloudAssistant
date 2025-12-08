@@ -435,7 +435,7 @@
 .file-card {
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(15px);
-  padding: 2rem;
+  padding: 1.5rem 2rem;
   border-radius: 20px;
   display: flex;
   justify-content: space-between;
@@ -474,9 +474,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 0.75rem;
+  margin: 0 0 0.5rem 0;
   font-size: 1.3rem;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .file-meta {
@@ -484,6 +485,7 @@
   font-size: 1rem;
   font-weight: 500;
   margin: 0;
+  line-height: 1.2;
 }
 
 .file-actions {

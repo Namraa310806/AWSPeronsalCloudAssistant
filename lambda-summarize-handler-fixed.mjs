@@ -1,22 +1,23 @@
 // ==========================================
-// LAMBDA FUNCTION 3: SUMMARIZE HANDLER (.mjs) - ENHANCED WITH OPTIONS & MONITORING
+// LAMBDA FUNCTION 3: SUMMARIZE HANDLER (.mjs) - OPENAI POWERED
 // ==========================================
 
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 import { TextractClient, DetectDocumentTextCommand } from "@aws-sdk/client-textract";
 import { inflateSync } from "zlib";
+import https from "https";
 
 // Initialize clients
 const s3Client = new S3Client({ region: 'ap-south-1' });
-const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' }); // Bedrock available in us-east-1
 const cloudwatchClient = new CloudWatchClient({ region: 'ap-south-1' });
 const textractClient = new TextractClient({ region: 'ap-south-1' });
 const BUCKET_NAME = 'pca-files-namraa';
 const NAMESPACE = 'PersonalCloudAssistant/Summarize';
 const PDF_MAGIC = '%PDF';
-const MAX_CONTENT_CHARS = 6000; // keep below Bedrock token limit headroom
+const MAX_CONTENT_CHARS = 14000; // OpenAI can handle more tokens
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = 'gpt-3.5-turbo';
 
 export const handler = async (event, context) => {
     if (context) {
@@ -193,73 +194,68 @@ export const handler = async (event, context) => {
             textToSummarize = textToSummarize.substring(0, MAX_CONTENT_CHARS) + '... (truncated)';
         }
 
+        // Use OpenAI for summarization
         try {
-            const prompts = {
-                'brief': `You are summarizing a document for a busy user. Only use information explicitly present in the text; do NOT infer or invent topics. State what the document is (type/purpose) and its main topics. Ignore garbled text, random glyphs, or non-English bits. If content is unreadable or insufficient to know the topic, say "Text not readable".\n\nContent:\n${textToSummarize}\n\nReturn: 2-3 sentences covering document type, subject, and key points based solely on the provided content.` ,
-                'detailed': `You are summarizing a document for a busy user. Only use information explicitly present in the text; do NOT infer or invent topics. State what the document is (type/purpose), who it is for, and the main sections/steps. Ignore garbled text, random glyphs, or non-English bits. If content is unreadable or insufficient to know the topic, say "Text not readable".\n\nContent:\n${textToSummarize}\n\nReturn: 1 short paragraph plus 3-7 bullets of key points/sections derived only from the content.` ,
-                'bullet': `Summarize this document as concise English bullets describing what it is (type/purpose) and the main points/sections. Only use information explicitly present; do NOT invent topics. Ignore garbled text, random glyphs, or non-English bits. If content is unreadable or insufficient to know the topic, say "Text not readable".\n\nContent:\n${textToSummarize}\n\nReturn: 5-8 bullets based solely on the content.` ,
-                'sentiment': `Summarize this document in English, focusing on its purpose and key points, then state the sentiment/tone if discernible from the text. Only use information explicitly present; do NOT invent topics. Ignore garbled text, random glyphs, or non-English bits. If content is unreadable or insufficient, say "Text not readable".\n\nContent:\n${textToSummarize}\n\nReturn: 2-3 sentences plus a tone label derived only from the content.` ,
-                'technical': `Provide a technical English summary describing what the document is (type/purpose), the systems or components involved, and the main procedures/steps. Only use information explicitly present; do NOT invent topics. Ignore garbled text, random glyphs, or non-English bits. If content is unreadable or insufficient, say "Text not readable".\n\nContent:\n${textToSummarize}\n\nReturn: 1 short paragraph plus 3-7 technical bullets derived only from the content.`
-            };
+            console.log(`[${requestId}] Calling OpenAI API for summarization with type: ${summaryType}`);
+            
+            if (!OPENAI_API_KEY) {
+                throw new Error('OpenAI API key not configured');
+            }
 
-            const selectedPrompt = prompts[summaryType] || prompts['brief'];
-            console.log(`[${requestId}] Calling Bedrock with summary type: ${summaryType}`);
+            const openaiSummary = await callOpenAI(textToSummarize, summaryType, requestId);
+            
+            if (openaiSummary) {
+                const duration = Date.now() - startTime;
+                await sendMetric('RequestDuration', duration, 'Milliseconds');
+                await sendMetric('SummariesGenerated', 1, 'Count');
+                await sendMetric('ContentLength', textToSummarize.length, 'Bytes');
 
-            const controller = new AbortController();
-            const BEDROCK_TIMEOUT_MS = 1800;
-            const timer = setTimeout(() => controller.abort(), BEDROCK_TIMEOUT_MS);
+                console.log(`[${requestId}] [SUCCESS] Summary generated in ${duration}ms`);
 
-            // Titan Text expects inputText + textGenerationConfig, not Anthropic messages
-            const modelInput = {
-                inputText: selectedPrompt,
-                textGenerationConfig: {
-                    maxTokenCount: 500,
-                    temperature: 0.3,
-                    topP: 0.9
-                }
-            };
-
-            const command = new InvokeModelCommand({
-                modelId: "amazon.titan-text-express-v1",
-                body: JSON.stringify(modelInput),
-                contentType: "application/json",
-                accept: "application/json",
-                abortSignal: controller.signal
-            });
-
-            const response = await bedrockClient.send(command);
-            clearTimeout(timer);
-            const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-            const summary = responseBody?.results?.[0]?.outputText || 'Unable to generate summary';
-
-            // If model returns an explicit unreadable message, pass it through unchanged
-
-            const duration = Date.now() - startTime;
-            await sendMetric('RequestDuration', duration, 'Milliseconds');
-            await sendMetric('SummariesGenerated', 1, 'Count');
-            await sendMetric('ContentLength', textToSummarize.length, 'Bytes');
-
-            console.log(`[${requestId}] [SUCCESS] Summary generated in ${duration}ms`);
-
-            return {
-                statusCode: 200,
-                headers: corsHeaders,
-                body: JSON.stringify({
-                    summary,
-                    originalLength: textToSummarize.length,
-                    type,
-                    summaryType,
-                    model: 'amazon.titan-text-express-v1',
-                    source: 'bedrock'
-                })
-            };
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        summary: openaiSummary,
+                        originalLength: textToSummarize.length,
+                        type,
+                        summaryType,
+                        model: OPENAI_MODEL,
+                        source: 'openai'
+                    })
+                };
+            } else {
+                throw new Error('OpenAI API returned empty response');
+            }
 
         } catch (error) {
-            console.error(`[${requestId}] Bedrock error:`, error);
-            const bedrockUnavailable = error.name === 'ResourceNotFoundException' || error.name === 'AbortError';
+            console.error(`[${requestId}] OpenAI error:`, error);
+            
+            // Fallback to text extraction if OpenAI fails
+            const sentences = textToSummarize.split(/[.!?]+/).filter(s => s.trim().length > 15);
+            
+            if (sentences.length === 0) {
+                const fallbackSummary = 'Unable to generate meaningful summary - document content is too short or unclear.';
+                const duration = Date.now() - startTime;
+                await sendMetric('RequestDuration', duration, 'Milliseconds');
+                await sendMetric('SummariesFallback', 1, 'Count');
+                
+                return {
+                    statusCode: 200,
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        summary: fallbackSummary,
+                        originalLength: textToSummarize.length,
+                        type,
+                        summaryType,
+                        source: 'fallback'
+                    })
+                };
+            }
 
-            const sentences = textToSummarize.split(/[.!?]+/).filter(s => s.trim().length > 10);
-            const fallbackSummary = sentences.slice(0, Math.max(1, Math.ceil(sentences.length / 3))).join('. ').trim() + '.';
+            // Take first 3-5 substantial sentences to form a coherent summary
+            const numSentences = Math.min(Math.max(2, Math.ceil(sentences.length / 4)), 5);
+            const fallbackSummary = sentences.slice(0, numSentences).map(s => s.trim()).join('. ').trim() + '.';
 
             const duration = Date.now() - startTime;
             await sendMetric('RequestDuration', duration, 'Milliseconds');
@@ -275,10 +271,7 @@ export const handler = async (event, context) => {
                     originalLength: textToSummarize.length,
                     type,
                     summaryType,
-                    source: 'fallback',
-                    warning: bedrockUnavailable
-                        ? 'Bedrock model unavailable or not permitted; using fallback summarizer'
-                        : 'AI summarization unavailable, using fallback summarizer'
+                    source: 'fallback'
                 })
             };
         }
@@ -289,16 +282,24 @@ export const handler = async (event, context) => {
         await sendMetric('RequestDuration', duration, 'Milliseconds');
 
         console.error(`[${requestId}] [ERROR] Unexpected error after ${duration}ms:`, error);
-        const fallbackSummary = lastText
-            ? (lastText.split(/[.!?]+/).filter(s => s.trim().length > 10).slice(0, 3).join('. ').trim() + '.')
-            : 'Summary unavailable due to an unexpected error.';
+        
+        let fallbackSummary = 'Summary unavailable due to an unexpected error.';
+        
+        // Try to provide intelligent fallback from lastText if available
+        if (lastText && lastText.trim().length > 50) {
+            const sentences = lastText.split(/[.!?]+/).filter(s => s.trim().length > 15);
+            if (sentences.length > 0) {
+                const numSentences = Math.min(Math.max(2, Math.ceil(sentences.length / 4)), 4);
+                fallbackSummary = sentences.slice(0, numSentences).map(s => s.trim()).join('. ').trim() + '.';
+            }
+        }
+        
         return {
             statusCode: 200,
             headers: corsHeaders,
             body: JSON.stringify({
                 summary: fallbackSummary,
-                source: 'fallback',
-                warning: `Unexpected error (requestId=${requestId}). AI summarization unavailable.`
+                source: 'fallback'
             })
         };
     }
@@ -406,4 +407,93 @@ function sanitizeText(text) {
     });
     const result = filtered.join(' ').trim();
     return result.length > 12000 ? result.slice(0, 12000) : result;
+}
+
+async function callOpenAI(text, summaryType, requestId) {
+    if (!OPENAI_API_KEY) {
+        console.log(`[${requestId}] OpenAI API key not configured`);
+        return null;
+    }
+
+    console.log(`[${requestId}] OpenAI API key is configured, proceeding with API call`);
+    console.log(`[${requestId}] Text length to summarize: ${text.length} characters`);
+
+    const prompts = {
+        'brief': `Read and analyze the following document text carefully. Provide a clear, accurate 2-3 sentence summary that explains what the document is about and its main points. Only use information from the text provided:\n\n${text}`,
+        'detailed': `Read and analyze the following document text carefully. Provide:\n1. A 2-3 sentence overview of what the document discusses\n2. 5-7 bullet points covering the main topics and key information\n\nOnly use information from the text provided:\n\n${text}`,
+        'bullet': `Read the following document and create 6-8 clear bullet points that summarize:\n- The document type and purpose\n- Main topics covered\n- Key information and details\n\nOnly use information from the text:\n\n${text}`,
+        'sentiment': `Read the following document and provide:\n1. A 2-3 sentence summary of the content\n2. The overall tone (positive, negative, neutral, professional, casual, etc.)\n\nOnly use information from the text:\n\n${text}`,
+        'technical': `Read the following technical document and provide:\n1. A 2-3 sentence overview\n2. 5-7 technical bullet points covering systems, procedures, specifications, and key details\n\nOnly use information from the text:\n\n${text}`
+    };
+
+    const userPrompt = prompts[summaryType] || prompts['brief'];
+
+    console.log(`[${requestId}] Using summary type: ${summaryType}`);
+
+    return new Promise((resolve, reject) => {
+        const payload = JSON.stringify({
+            model: OPENAI_MODEL,
+            messages: [
+                { role: 'system', content: 'You are an expert document analyst. Analyze the provided text carefully and create accurate, informative summaries based only on the content given. Do not make assumptions or add information not present in the text.' },
+                { role: 'user', content: userPrompt }
+            ],
+            max_tokens: 800,
+            temperature: 0.7
+        });
+
+        const options = {
+            hostname: 'api.openai.com',
+            port: 443,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload),
+                'Authorization': `Bearer ${OPENAI_API_KEY}`
+            }
+        };
+
+        console.log(`[${requestId}] Sending request to OpenAI API...`);
+
+        const req = https.request(options, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                try {
+                    console.log(`[${requestId}] OpenAI API response status: ${res.statusCode}`);
+                    
+                    if (res.statusCode === 200) {
+                        const response = JSON.parse(data);
+                        const summary = response?.choices?.[0]?.message?.content?.trim();
+                        if (summary) {
+                            console.log(`[${requestId}] OpenAI summary generated successfully, length: ${summary.length}`);
+                            console.log(`[${requestId}] Summary preview: ${summary.substring(0, 100)}...`);
+                            resolve(summary);
+                        } else {
+                            console.error(`[${requestId}] OpenAI response has no content`);
+                            resolve(null);
+                        }
+                    } else {
+                        console.error(`[${requestId}] OpenAI API error: ${res.statusCode}`, data);
+                        resolve(null);
+                    }
+                } catch (e) {
+                    console.error(`[${requestId}] Failed to parse OpenAI response:`, e);
+                    resolve(null);
+                }
+            });
+        });
+
+        req.on('error', (e) => {
+            console.error(`[${requestId}] OpenAI request error:`, e);
+            resolve(null);
+        });
+
+        req.write(payload);
+        req.end();
+    });
 }
