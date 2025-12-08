@@ -178,33 +178,6 @@ npm run build
 # - Traditional hosting (Netlify, Vercel, etc.)
 ```
 
-### Lambda Deployment
-
-The project includes both original and optimized Lambda handler versions. **Deploy the `-fixed.mjs` versions**:
-
-```bash
-# Notes Handler
-zip lambda-notes.zip lambda-notes-handler-fixed.mjs
-aws lambda update-function-code \
-  --function-name notes-handler \
-  --zip-file fileb://lambda-notes.zip \
-  --region ap-south-1
-
-# Files Handler
-zip lambda-files.zip lambda-files-handler-fixed.mjs
-aws lambda update-function-code \
-  --function-name files-handler \
-  --zip-file fileb://lambda-files.zip \
-  --region ap-south-1
-
-# Monitoring Handler (Reference - feature removed but kept for history)
-zip lambda-monitoring.zip lambda-summarize-handler-fixed.mjs
-aws lambda update-function-code \
-  --function-name monitoring-handler \
-  --zip-file fileb://lambda-monitoring.zip \
-  --region ap-south-1
-```
-
 ## 📊 CloudWatch Metrics
 
 Custom metrics published by Lambda functions:
