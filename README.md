@@ -121,22 +121,28 @@ lambda-*-handler-fixed.mjs    # Serverless backend functions
 
 ## 🔧 Lambda Functions
 
+**Note**: Both original and optimized versions are included for reference. Deploy the `-fixed.mjs` versions to AWS.
+
 ### Notes Handler
+- **Files**: `lambda-notes-handler.mjs` (original) | `lambda-notes-handler-fixed.mjs` (deploy this)
 - **Endpoint**: `/notes`
 - **Operations**: GET (list), POST (create), DELETE (by ID)
 - **Storage**: DynamoDB
 - **Metrics**: Tracks operation counts, durations, errors
 
 ### Files Handler
+- **Files**: `lambda-files-handler.mjs` (original) | `lambda-files-handler-fixed.mjs` (deploy this)
 - **Endpoint**: `/files`
 - **Operations**: GET (list), POST (upload), DELETE (by ID), GET download URL
 - **Storage**: S3 with presigned URLs (1-hour expiration)
 - **Features**: Base64 upload support, metadata tracking
 
 ### Monitoring Handler
+- **File**: `lambda-summarize-handler-fixed.mjs` (reference - feature removed from frontend)
 - **Endpoint**: `/monitoring`
 - **Purpose**: Aggregate CloudWatch metrics
 - **Features**: Health calculation, error tracking, dimension aggregation
+- **Access**: Admin-only (configured via `REACT_APP_ADMIN_EMAIL`) - Only the owner can view monitoring dashboard
 
 ## 🔐 Security
 
@@ -146,6 +152,7 @@ lambda-*-handler-fixed.mjs    # Serverless backend functions
 - **Presigned URLs**: Time-limited, signed access to S3 objects
 - **CORS**: Configured for secure cross-origin requests
 - **Credentials**: Environment variables (never committed)
+- **Admin Access**: Monitoring dashboard is restricted to admin users only (configured via `REACT_APP_ADMIN_EMAIL`)
 
 ## 🎨 UI/UX Highlights
 
@@ -169,6 +176,33 @@ npm run build
 # - AWS Amplify Console (auto CI/CD)
 # - S3 + CloudFront (static + CDN)
 # - Traditional hosting (Netlify, Vercel, etc.)
+```
+
+### Lambda Deployment
+
+The project includes both original and optimized Lambda handler versions. **Deploy the `-fixed.mjs` versions**:
+
+```bash
+# Notes Handler
+zip lambda-notes.zip lambda-notes-handler-fixed.mjs
+aws lambda update-function-code \
+  --function-name notes-handler \
+  --zip-file fileb://lambda-notes.zip \
+  --region ap-south-1
+
+# Files Handler
+zip lambda-files.zip lambda-files-handler-fixed.mjs
+aws lambda update-function-code \
+  --function-name files-handler \
+  --zip-file fileb://lambda-files.zip \
+  --region ap-south-1
+
+# Monitoring Handler (Reference - feature removed but kept for history)
+zip lambda-monitoring.zip lambda-summarize-handler-fixed.mjs
+aws lambda update-function-code \
+  --function-name monitoring-handler \
+  --zip-file fileb://lambda-monitoring.zip \
+  --region ap-south-1
 ```
 
 ## 📊 CloudWatch Metrics
