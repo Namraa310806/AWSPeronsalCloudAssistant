@@ -24,22 +24,29 @@ export const handler = async (event, context) => {
     
     console.log(`[${requestId}] [START] Received event:`, JSON.stringify(event, null, 2));
 
+    const requestOrigin = event?.headers?.origin || event?.headers?.Origin;
+    const allowedOrigins = new Set([
+        'https://main.d1xrjjt0e3swym.amplifyapp.com',
+        'http://localhost:3000'
+    ]);
+
+    // CORS headers for all responses
+    const headers = {
+        'Access-Control-Allow-Origin': allowedOrigins.has(requestOrigin) ? requestOrigin : 'https://main.d1xrjjt0e3swym.amplifyapp.com',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,Origin,Accept',
+        'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+        'Access-Control-Allow-Credentials': 'true',
+        'Content-Type': 'application/json'
+    };
+
     if (!userId) {
         console.error(`[${requestId}] Missing authenticated user`);
         return {
             statusCode: 401,
-            headers: { 'Access-Control-Allow-Origin': '*' },
+            headers,
             body: JSON.stringify({ error: 'Unauthorized' })
         };
     }
-    
-    // CORS headers for all responses
-    const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-        'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-        'Content-Type': 'application/json'
-    };
 
     // Helper function to send metrics to CloudWatch
     const sendMetric = async (metricName, value, unit = 'Count') => {
