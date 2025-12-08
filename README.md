@@ -2,6 +2,8 @@
 
 A serverless note and file management application built with React and AWS, featuring secure authentication, cloud storage, and real-time monitoring.
 
+🚀 **Live Demo**: [https://main.d1xrjjt0e3swym.amplifyapp.com/](https://main.d1xrjjt0e3swym.amplifyapp.com/)
+
 ## 📋 Project Overview
 
 Personal Cloud Assistant is a full-stack web application that allows users to create and manage notes, upload and store files securely in the cloud, and monitor system health in real-time. Built entirely on AWS serverless infrastructure for scalability, reliability, and cost efficiency.
@@ -213,10 +215,17 @@ See `.env.example` for complete configuration template.
 - Scheduled reminders
 - Mobile app (React Native)
 
+## 🤝 Contributing
+
+I'm open to collaborations and contributions! If you have ideas for enhancements or would like to work together on improving this project, feel free to:
+
+- Open an issue to discuss new features
+- Submit a pull request with improvements
+- Reach out for collaboration opportunities
+
 ## 📧 Support
 
 For issues or questions, open an issue in the repository.
 
 ---
-
 **Built with React & AWS** | Serverless Architecture | Cloud-Native Application
