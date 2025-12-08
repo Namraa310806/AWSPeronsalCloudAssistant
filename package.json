@@ -5,10 +5,6 @@
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.1",
     "@aws-sdk/client-cloudwatch": "^3.946.0",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^13.5.0",
     "aws-amplify": "^6.15.8",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
