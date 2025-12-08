@@ -120,29 +120,34 @@ src/
 ├── aws-exports.js            # AWS config
 └── index.js                  # Entry point
 
-lambda-*-handler-fixed.mjs    # Serverless backend functions
+lambda-files-handler.mjs      # Files Lambda
+lambda-notes-handler.mjs      # Notes Lambda
+lambda-summarize-handler-fixed.mjs  # Monitoring Lambda (reference)
 ```
 
 ## 🔧 Lambda Functions
 
-**Note**: Both original and optimized versions are included for reference. Deploy the `-fixed.mjs` versions to AWS.
+Deploy these handler files to Lambda:
 
 ### Notes Handler
-- **Files**: `lambda-notes-handler.mjs` (original) | `lambda-notes-handler-fixed.mjs` (deploy this)
+
+- **File**: `lambda-notes-handler.mjs`
 - **Endpoint**: `/notes`
 - **Operations**: GET (list), POST (create), DELETE (by ID)
 - **Storage**: DynamoDB
 - **Metrics**: Tracks operation counts, durations, errors
 
 ### Files Handler
-- **Files**: `lambda-files-handler.mjs` (original) | `lambda-files-handler-fixed.mjs` (deploy this)
+
+- **File**: `lambda-files-handler.mjs`
 - **Endpoint**: `/files`
 - **Operations**: GET (list), POST (upload), DELETE (by ID), GET download URL
 - **Storage**: S3 with presigned URLs (1-hour expiration)
 - **Features**: Base64 upload support, metadata tracking
 
 ### Monitoring Handler
-- **File**: `lambda-summarize-handler-fixed.mjs` (reference - feature removed from frontend)
+
+- **File**: `lambda-summarize-handler-fixed.mjs` (reference - monitoring logic; frontend feature removed)
 - **Endpoint**: `/monitoring`
 - **Purpose**: Aggregate CloudWatch metrics
 - **Features**: Health calculation, error tracking, dimension aggregation
@@ -187,6 +192,7 @@ npm run build
 Custom metrics published by Lambda functions:
 
 **Namespaces**:
+
 - `PersonalCloudAssistant/Notes`
 - `PersonalCloudAssistant/Files`
 - `PersonalCloudAssistant/Monitoring`
