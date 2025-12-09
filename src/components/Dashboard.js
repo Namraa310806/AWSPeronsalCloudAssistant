@@ -11,6 +11,16 @@ function Dashboard() {
     loadRecentActivity();
   }, []);
 
+  const getCleanFileName = (filename) => {
+    if (filename && filename.includes('-')) {
+      const parts = filename.split('-');
+      if (parts[0] && /^\d+$/.test(parts[0])) {
+        return parts.slice(1).join('-');
+      }
+    }
+    return filename;
+  };
+
   const loadRecentActivity = async () => {
     try {
       const [notesResponse, filesResponse] = await Promise.all([
@@ -33,7 +43,7 @@ function Dashboard() {
         ...files.map(file => ({
           id: file.id,
           type: 'file',
-          title: file.name,
+          title: getCleanFileName(file.name),
           date: file.uploadedAt,
           icon: '📄'
         }))
