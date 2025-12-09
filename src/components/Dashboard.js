@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import './Dashboard.css';
 import { apiFetch } from '../api';
@@ -6,10 +6,6 @@ import { apiFetch } from '../api';
 function Dashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    loadRecentActivity();
-  }, []);
 
   const getCleanFileName = (filename) => {
     if (filename && filename.includes('-')) {
@@ -21,7 +17,7 @@ function Dashboard() {
     return filename;
   };
 
-  const loadRecentActivity = async () => {
+  const loadRecentActivity = useCallback(async () => {
     try {
       const [notesResponse, filesResponse] = await Promise.all([
         apiFetch('/notes'),
@@ -57,7 +53,11 @@ function Dashboard() {
       console.error('Error loading recent activity:', error);
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadRecentActivity();
+  }, [loadRecentActivity]);
 
   return (
     <div className="dashboard">
